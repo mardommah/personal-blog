@@ -4,7 +4,7 @@ A small personal blog with a Markdown editor. Bun stores posts in SQLite, genera
 
 ## Requirements
 
-- Bun 1.1 or newer
+- Bun 1.4.2 or newer (required by `bun.lock`)
 - `make` for the commands below
 
 ## Run locally
