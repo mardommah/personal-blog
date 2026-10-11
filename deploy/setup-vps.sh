@@ -27,7 +27,14 @@ fi
 for tool in nginx git make runuser; do
   command -v "$tool" >/dev/null || { echo "Missing $tool; install it on the VPS first." >&2; exit 1; }
 done
-test -x /usr/local/bin/bun || { echo 'Missing Bun at /usr/local/bin/bun.' >&2; exit 1; }
+if [ ! -x /usr/local/bin/bun ]; then
+  bun_path=$(command -v bun || true)
+  if [ -z "$bun_path" ] || [ ! -x "$bun_path" ]; then
+    echo 'Bun is missing. Install Bun before running VPS setup.' >&2
+    exit 1
+  fi
+  install -m 0755 "$bun_path" /usr/local/bin/bun
+fi
 test -f /etc/blog-cms.env || { echo 'Create /etc/blog-cms.env with ADMIN_PASSWORD_HASH first.' >&2; exit 1; }
 grep -q '^ADMIN_PASSWORD_HASH=' /etc/blog-cms.env || { echo 'ADMIN_PASSWORD_HASH is missing from /etc/blog-cms.env.' >&2; exit 1; }
 chown root:root /etc/blog-cms.env

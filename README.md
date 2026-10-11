@@ -42,7 +42,7 @@ The generated site includes post pages, paginated index pages, static assets, an
 
 Production configuration lives in `deploy/`: `nginx.conf` serves `dist/` and proxies `/admin/`, `blog-cms.service` runs Bun, and `deploy.sh` updates the site from Git.
 
-1. Push this repository to its GitHub origin. On a Debian or Ubuntu VPS, install Git, Make, nginx, Certbot with its nginx plugin, and Bun at `/usr/local/bin/bun`.
+1. Push this repository to its GitHub origin. On a Debian or Ubuntu VPS, install Git, Make, nginx, Certbot with its nginx plugin, and Bun. Setup copies Bun from the root user's `PATH` to `/usr/local/bin/bun` when needed, so the `blog` service user can run it.
 2. On the VPS, clone the repository into `/opt/blog` (create the directory first if you prefer):
 
    ```sh
