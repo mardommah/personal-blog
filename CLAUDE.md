@@ -16,11 +16,11 @@ Target server: 1GB RAM, 5GB disk, 1GHz CPU → keep stack tiny.
 - Pagination: `PER_PAGE` 10 in build.js. Static pages `/` + `/page/N/` (work without JS). `static/pagination.js` (index pages only) intercepts `a[data-pager]`, fetches page, swaps `<main id="main">`, `pushState`; `popstate` handles back/forward; fetch failure falls back to normal navigation.
 - Reserved slugs `admin`, `page` (`RESERVED_SLUGS` in server.js) — they collide with site URLs.
 - Post detail page: `← Semua tulisan` back link + prev/next nav (`postNav` in build.js; list is newest first, so `posts[i+1]` = older/Sebelumnya, `posts[i-1]` = newer/Berikutnya).
-- `deploy/` — nginx.conf (serves `dist/`, proxies `/admin/` + basic auth), systemd unit (Bun), `deploy.sh` (rsync code, excludes `data/`).
-- `Makefile` — `make dev` (watch, port 3080), `make build`, `make backup` (`VACUUM INTO backups/`), `make deploy SERVER=user@host`, `make clean`.
+- `deploy/` — nginx.conf (serves `dist/`, proxies `/admin/`), systemd unit (Bun), `setup-vps.sh` (one-time VPS setup), `deploy.sh` (Git pull, build, restart, nginx reload).
+- `Makefile` — `make dev` (watch, port 3099), `make build`, `make backup` (`VACUUM INTO backups/`), `make vps-setup SERVER=user@host` (domain from `.env`, else prompt; `DOMAIN=...` overrides), `make deploy` (on VPS), `make clean`.
 
 ## Konvensi
-- Auth = nginx `auth_basic`, NOT in app. App must never bind public. Local `make dev` has no auth (localhost only).
+- Auth = app password login (`auth.js`); nginx limits login requests. App binds loopback only. Production CMS requires HTTPS.
 - CSRF: POST rejected unless `Sec-Fetch-Site: same-origin` (or matching Origin).
 - Slug regex `^[a-z0-9]+(-[a-z0-9]+)*$` — slug becomes `dist/<slug>/` dir name; keep it.
 - `data/blog.db` on server = source of truth; never rsync over it. Back up with `make backup`.

@@ -1,6 +1,6 @@
 PORT ?= 3099
 
-.PHONY: dev build install clean backup deploy password
+.PHONY: dev build install clean backup deploy vps-setup password
 
 ## dev: run blog + CMS locally with auto-reload (http://127.0.0.1:$(PORT)/)
 dev: install
@@ -21,10 +21,14 @@ backup:
 	@mkdir -p backups
 	bun -e 'import {Database} from "bun:sqlite"; new Database("data/blog.db").run("VACUUM INTO ?", ["backups/blog-$(shell date +%Y%m%d-%H%M%S).db"])'
 
-## deploy: make deploy SERVER=user@host
+## deploy: run on VPS from /opt/blog; pull, build, restart CMS, reload nginx
 deploy:
-	@test -n "$(SERVER)" || { echo "usage: make deploy SERVER=user@host"; exit 1; }
-	./deploy/deploy.sh $(SERVER)
+	./deploy/deploy.sh
+
+## vps-setup: provision nginx and systemd, then deploy (requires Bun, nginx, sudo, and /etc/blog-cms.env)
+vps-setup:
+	@test -n "$(SERVER)" || { echo "usage: make vps-setup SERVER=user@host [DOMAIN=blog.example.com]"; exit 1; }
+	./deploy/setup-vps.sh "$(SERVER)" "$(DOMAIN)"
 
 ## password: generate ADMIN_PASSWORD_HASH (argon2id, base64) for .env or /etc/blog-cms.env
 password:
