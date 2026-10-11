@@ -56,7 +56,7 @@ Production configuration lives in `deploy/`: `nginx.conf` serves `dist/` and pro
 
 Setup installs required system packages, installs or upgrades Bun to match `bun.lock`, configures nginx and systemd, builds the site, starts the CMS, and requests an HTTPS certificate through Certbot. Certbot may ask for contact email and terms acceptance. Keep ports 80 and 443 reachable. Until HTTPS is active, nginx rejects `/admin/` requests.
 
-For later releases, push changes to the tracked Git branch, then run **one command on the VPS**:
+For later releases, push changes to the tracked Git branch, then run **one command as root on the VPS**:
 
 ```sh
 cd /opt/blog && make deploy
