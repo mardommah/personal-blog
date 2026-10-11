@@ -17,7 +17,7 @@ Target server: 1GB RAM, 5GB disk, 1GHz CPU → keep stack tiny.
 - Reserved slugs `admin`, `page` (`RESERVED_SLUGS` in server.js) — they collide with site URLs.
 - Post detail page: `← Semua tulisan` back link + prev/next nav (`postNav` in build.js; list is newest first, so `posts[i+1]` = older/Sebelumnya, `posts[i-1]` = newer/Berikutnya).
 - `deploy/` — nginx.conf (serves `dist/`, proxies `/admin/`), systemd unit (Bun), `setup-vps.sh` (one-time VPS setup), `deploy.sh` (Git pull, build, restart, nginx reload).
-- `Makefile` — `make dev` (watch, port 3099), `make build`, `make backup` (`VACUUM INTO backups/`), `make vps-setup SERVER=user@host` (domain from `.env`, else prompt; `DOMAIN=...` overrides), `make deploy` (on VPS), `make clean`.
+- `Makefile` — `make dev` (watch, port 3099), `make build`, `make backup` (`VACUUM INTO backups/`), `make vps-setup` (on VPS after clone; domain from `.env` or prompt), `make deploy` (on VPS), `make clean`.
 
 ## Konvensi
 - Auth = app password login (`auth.js`); nginx limits login requests. App binds loopback only. Production CMS requires HTTPS.

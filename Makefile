@@ -25,14 +25,15 @@ backup:
 deploy:
 	./deploy/deploy.sh
 
-## vps-setup: provision nginx and systemd, then deploy (requires Bun, nginx, sudo, and /etc/blog-cms.env)
+## vps-setup: run on VPS from /opt/blog after cloning repository
 vps-setup:
-	@test -n "$(SERVER)" || { echo "usage: make vps-setup SERVER=user@host [DOMAIN=blog.example.com]"; exit 1; }
-	./deploy/setup-vps.sh "$(SERVER)" "$(DOMAIN)"
+	./deploy/setup-vps.sh "$(DOMAIN)"
 
 ## password: generate ADMIN_PASSWORD_HASH (argon2id, base64) for .env or /etc/blog-cms.env
 password:
-	@read -r -s -p "Password admin (min 12 karakter): " P; echo; \
+	@test -t 0 || { echo "Jalankan dari terminal interaktif."; exit 1; }; \
+	printf "Password admin (min 12 karakter): "; stty -echo; trap 'stty echo' 0 1 2 3 15; \
+	IFS= read -r P; stty echo; trap - 0 1 2 3 15; printf '\n'; \
 	[ $${#P} -ge 12 ] || { echo "Terlalu pendek."; exit 1; }; \
 	P="$$P" bun -e 'const h = await Bun.password.hash(process.env.P, { algorithm: "argon2id", memoryCost: 19456, timeCost: 2 }); console.log("ADMIN_PASSWORD_HASH=" + Buffer.from(h).toString("base64"))'
 

@@ -1,9 +1,17 @@
 #!/bin/sh
-# One-time VPS setup. Requires a remote SSH user with passwordless sudo.
+# Run once as root from the Git checkout at /opt/blog.
 set -eu
 
-server=${1:-}
-domain=${2:-}
+if [ "$(id -u)" -ne 0 ]; then
+  echo 'Run as root: sudo make vps-setup' >&2
+  exit 1
+fi
+if [ "$(pwd -P)" != /opt/blog ] || [ ! -d .git ]; then
+  echo 'Clone the repository into /opt/blog, then run make vps-setup there.' >&2
+  exit 1
+fi
+
+domain=${1:-}
 if [ -z "$domain" ] && [ -f .env ]; then
   domain=$(sed -n 's/^DOMAIN=//p' .env)
 fi
@@ -11,53 +19,37 @@ if [ -z "$domain" ]; then
   printf 'Domain blog: '
   IFS= read -r domain || exit 1
 fi
-if [ -z "$server" ] || ! printf '%s' "$domain" | grep -Eq '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$'; then
-  echo 'usage: setup-vps.sh user@host blog.example.com (lowercase domain)' >&2
+if ! printf '%s' "$domain" | grep -Eq '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$'; then
+  echo 'Enter a lowercase domain such as blog.example.com.' >&2
   exit 1
 fi
 
-# Check prerequisites before changing the server.
-ssh "$server" 'sudo -n sh -s' <<'REMOTE'
-set -eu
-command -v nginx >/dev/null
-command -v git >/dev/null
-command -v make >/dev/null
-test -x /usr/local/bin/bun
-test -f /etc/blog-cms.env
-grep -q '^ADMIN_PASSWORD_HASH=' /etc/blog-cms.env
-REMOTE
+for tool in nginx git make runuser; do
+  command -v "$tool" >/dev/null || { echo "Missing $tool; install it on the VPS first." >&2; exit 1; }
+done
+test -x /usr/local/bin/bun || { echo 'Missing Bun at /usr/local/bin/bun.' >&2; exit 1; }
+test -f /etc/blog-cms.env || { echo 'Create /etc/blog-cms.env with ADMIN_PASSWORD_HASH first.' >&2; exit 1; }
+grep -q '^ADMIN_PASSWORD_HASH=' /etc/blog-cms.env || { echo 'ADMIN_PASSWORD_HASH is missing from /etc/blog-cms.env.' >&2; exit 1; }
+chown root:root /etc/blog-cms.env
+chmod 600 /etc/blog-cms.env
 
-ssh "$server" 'sudo -n sh -s' <<'REMOTE'
-set -eu
 id blog >/dev/null 2>&1 || useradd --system --home /opt/blog --shell /usr/sbin/nologin blog
-owner=${SUDO_USER:-root}
-install -d -m 2775 -o "$owner" -g blog /opt/blog
-REMOTE
-
-# The checkout remains on the VPS, so later updates need only `make deploy` there.
-ssh "$server" 'sh -s' <<'REMOTE'
-set -eu
-if [ ! -d /opt/blog/.git ]; then
-  test -z "$(ls -A /opt/blog)" || { echo '/opt/blog is not empty and has no Git checkout.' >&2; exit 1; }
-  git clone https://github.com/mardommah/personal-blog.git /opt/blog
-fi
-REMOTE
-
-ssh "$server" 'sudo -n install -d -m 0750 -o blog -g blog /opt/blog/data'
-
-ssh "$server" "sudo -n sh -s -- '$domain'" <<'REMOTE'
-set -eu
-domain=$1
-cd /opt/blog
+chgrp blog /opt/blog
+chmod 2775 /opt/blog
+install -d -m 0750 -o blog -g blog /opt/blog/data
+chown -R blog:blog /opt/blog/data
 install -m 0644 deploy/blog-cms.service /etc/systemd/system/blog-cms.service
-sed "s/example.com/$domain/g" deploy/nginx.conf > /etc/nginx/sites-available/blog
+if [ ! -e /etc/nginx/sites-available/blog ]; then
+  sed "s/example.com/$domain/g" deploy/nginx.conf > /etc/nginx/sites-available/blog
+elif ! grep -q "server_name $domain;" /etc/nginx/sites-available/blog; then
+  echo 'Existing nginx blog site uses another domain. Check /etc/nginx/sites-available/blog.' >&2
+  exit 1
+fi
 if [ ! -e /etc/nginx/sites-enabled/blog ]; then
   ln -s /etc/nginx/sites-available/blog /etc/nginx/sites-enabled/blog
 fi
 nginx -t
 systemctl daemon-reload
 systemctl enable blog-cms
-REMOTE
-
-ssh "$server" 'cd /opt/blog && make deploy'
-printf 'HTTP site configured for %s. Enable HTTPS with: sudo certbot --nginx -d %s --redirect\n' "$domain" "$domain"
+make deploy
+printf 'Site configured for %s. Enable HTTPS: certbot --nginx -d %s --redirect\n' "$domain" "$domain"

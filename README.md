@@ -42,10 +42,19 @@ The generated site includes post pages, paginated index pages, static assets, an
 
 Production configuration lives in `deploy/`: `nginx.conf` serves `dist/` and proxies `/admin/`, `blog-cms.service` runs Bun, and `deploy.sh` updates the site from Git.
 
-1. Push this repository to its GitHub origin. On a Debian or Ubuntu VPS, install Git, Make, nginx, Certbot with its nginx plugin, and Bun at `/usr/local/bin/bun`. The setup command needs an SSH user with passwordless `sudo` and access to the repository.
-2. Generate a password hash with `make password`. Store its `ADMIN_PASSWORD_HASH=...` line in `/etc/blog-cms.env` on the VPS, owned by root with mode `600`.
-3. Add `DOMAIN=blog.example.com` to your local `.env`, then run `make vps-setup SERVER=user@host` from your workstation. If `DOMAIN` is absent, setup prompts for it. You can also pass `DOMAIN=blog.example.com` to override `.env`. Setup clones the repository into `/opt/blog/`, creates the `blog` service user, installs nginx and systemd configuration, builds the site, and starts the CMS.
-4. On the VPS, enable HTTPS with `sudo certbot --nginx -d blog.example.com --redirect`. Until HTTPS is active, nginx rejects `/admin/` requests.
+1. Push this repository to its GitHub origin. On a Debian or Ubuntu VPS, install Git, Make, nginx, Certbot with its nginx plugin, and Bun at `/usr/local/bin/bun`.
+2. On the VPS, clone the repository into `/opt/blog` (create the directory first if you prefer):
+
+   ```sh
+   mkdir -p /opt/blog
+   git clone https://github.com/mardommah/personal-blog.git /opt/blog
+   cd /opt/blog
+   ```
+
+   `git pull` works only inside an existing checkout. Use `git clone` for the first download. `/opt/blog` must be empty before cloning.
+3. Generate an admin password hash with `make password`. Put its `ADMIN_PASSWORD_HASH=...` line in `/etc/blog-cms.env`, owned by root with mode `600`.
+4. As root in `/opt/blog`, run `make vps-setup` and enter the blog domain when prompted. You can set `DOMAIN=blog.example.com` in `/opt/blog/.env` or pass `make vps-setup DOMAIN=blog.example.com` instead. Setup installs nginx and systemd configuration, builds the site, and starts the CMS.
+5. Enable HTTPS with `certbot --nginx -d blog.example.com --redirect`. Until HTTPS is active, nginx rejects `/admin/` requests.
 
 For later releases, push changes to the tracked Git branch, then run **one command on the VPS**:
 
@@ -53,7 +62,7 @@ For later releases, push changes to the tracked Git branch, then run **one comma
 cd /opt/blog && make deploy
 ```
 
-This runs `git pull --ff-only`, installs locked production dependencies, regenerates `dist/`, checks nginx configuration, restarts `blog-cms`, and reloads nginx. Local changes to tracked files stop deployment before the pull. Posts in `data/blog.db` stay on the VPS; Git ignores `data/` and `dist/`.
+This runs `git pull --ff-only`, installs locked production dependencies, regenerates `dist/` as the `blog` user, checks nginx configuration, restarts `blog-cms`, and reloads nginx. Local changes to tracked files stop deployment before the pull. Posts in `data/blog.db` stay on the VPS; Git ignores `data/` and `dist/`.
 
 The CMS uses its own password login and session cookie. nginx adds a rate limit to `/admin/login`. HTTPS is required in production so the login cookie receives the `Secure` flag.
 
