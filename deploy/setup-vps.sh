@@ -35,7 +35,14 @@ if [ ! -x /usr/local/bin/bun ]; then
   fi
   install -m 0755 "$bun_path" /usr/local/bin/bun
 fi
-test -f /etc/blog-cms.env || { echo 'Create /etc/blog-cms.env with ADMIN_PASSWORD_HASH first.' >&2; exit 1; }
+if [ ! -f /etc/blog-cms.env ]; then
+  if [ ! -f .env ] || ! grep -q '^ADMIN_PASSWORD_HASH=' .env; then
+    echo 'Add ADMIN_PASSWORD_HASH to /opt/blog/.env or create /etc/blog-cms.env first.' >&2
+    exit 1
+  fi
+  install -m 0600 /dev/null /etc/blog-cms.env
+  grep -m1 '^ADMIN_PASSWORD_HASH=' .env > /etc/blog-cms.env
+fi
 grep -q '^ADMIN_PASSWORD_HASH=' /etc/blog-cms.env || { echo 'ADMIN_PASSWORD_HASH is missing from /etc/blog-cms.env.' >&2; exit 1; }
 chown root:root /etc/blog-cms.env
 chmod 600 /etc/blog-cms.env

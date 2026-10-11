@@ -52,7 +52,7 @@ Production configuration lives in `deploy/`: `nginx.conf` serves `dist/` and pro
    ```
 
    `git pull` works only inside an existing checkout. Use `git clone` for the first download. `/opt/blog` must be empty before cloning.
-3. Generate an admin password hash with `make password`. Put its `ADMIN_PASSWORD_HASH=...` line in `/etc/blog-cms.env`, owned by root with mode `600`.
+3. Generate an admin password hash with `make password`. Put its `ADMIN_PASSWORD_HASH=...` line in `/opt/blog/.env`. Setup copies only that line to `/etc/blog-cms.env` with mode `600` for systemd. If `/etc/blog-cms.env` already exists, setup uses it instead.
 4. As root in `/opt/blog`, run `make vps-setup` and enter the blog domain when prompted. You can set `DOMAIN=blog.example.com` in `/opt/blog/.env` or pass `make vps-setup DOMAIN=blog.example.com` instead. Setup installs nginx and systemd configuration, builds the site, and starts the CMS.
 5. Enable HTTPS with `certbot --nginx -d blog.example.com --redirect`. Until HTTPS is active, nginx rejects `/admin/` requests.
 
