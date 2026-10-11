@@ -1,0 +1,19 @@
+{
+  "name": "personal-blog",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "build": "bun run build.js",
+    "start": "bun run server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "marked": "^14.1.4"
+  },
+  "type": "module",
+  "engines": {
+    "bun": ">=1.1"
+  }
+}

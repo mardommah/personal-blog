@@ -1,0 +1,18 @@
+# /etc/systemd/system/blog-cms.service
+# Bun install: curl -fsSL https://bun.sh/install | sudo BUN_INSTALL=/usr/local bash
+[Unit]
+Description=Personal blog CMS
+After=network.target
+
+[Service]
+User=blog
+WorkingDirectory=/opt/blog
+ExecStart=/usr/local/bin/bun run server.js
+Restart=on-failure
+Environment=NODE_ENV=production
+# Holds ADMIN_PASSWORD_HASH (from `make password`). chmod 600, owner root.
+EnvironmentFile=/etc/blog-cms.env
+MemoryMax=128M
+
+[Install]
+WantedBy=multi-user.target
