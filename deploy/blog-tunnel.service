@@ -1,0 +1,12 @@
+[Unit]
+Description=Cloudflare Tunnel for personal blog
+After=network-online.target nginx.service
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/cloudflared tunnel run --token-file /etc/blog-tunnel.token
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -25,7 +25,7 @@ backup:
 deploy:
 	./deploy/deploy.sh
 
-## vps-setup: run on VPS from /opt/blog after cloning repository
+## vps-setup: run on VPS from /opt/blog; configure nginx, CMS, and Cloudflare Tunnel
 vps-setup:
 	./deploy/setup-vps.sh "$(DOMAIN)"
 

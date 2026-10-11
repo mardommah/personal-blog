@@ -10,6 +10,7 @@ if [ "$(pwd -P)" != /opt/blog ] || [ ! -d .git ]; then
   echo 'Clone the repository into /opt/blog, then run make vps-setup there.' >&2
   exit 1
 fi
+umask 022
 
 domain=${1:-}
 if [ -z "$domain" ] && [ -f .env ]; then
@@ -24,10 +25,16 @@ if ! printf '%s' "$domain" | grep -Eq '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]
   exit 1
 fi
 
-# Debian/Ubuntu packages needed by the site and certificate setup.
+# Debian/Ubuntu packages needed by the site and Tunnel connector.
 command -v apt-get >/dev/null || { echo 'VPS setup requires Debian or Ubuntu.' >&2; exit 1; }
 apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y git make nginx certbot python3-certbot-nginx curl unzip
+DEBIAN_FRONTEND=noninteractive apt-get install -y git make nginx curl unzip ca-certificates
+install -d -m 0755 /usr/share/keyrings
+curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg -o /usr/share/keyrings/cloudflare-main.gpg
+chmod 0644 /usr/share/keyrings/cloudflare-main.gpg
+printf 'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main\n' > /etc/apt/sources.list.d/cloudflared.list
+apt-get update
+DEBIAN_FRONTEND=noninteractive apt-get install -y cloudflared
 
 # Install or upgrade Bun before reading the version-2 lockfile.
 bun_path=$(command -v bun || true)
@@ -83,18 +90,61 @@ chmod 2775 /opt/blog
 install -d -m 0750 -o blog -g blog /opt/blog/data
 chown -R blog:blog /opt/blog/data
 install -m 0644 deploy/blog-cms.service /etc/systemd/system/blog-cms.service
-if [ ! -e /etc/nginx/sites-available/blog ]; then
-  sed "s/example.com/$domain/g" deploy/nginx.conf > /etc/nginx/sites-available/blog
-elif ! grep -q "server_name $domain;" /etc/nginx/sites-available/blog; then
-  echo 'Existing nginx blog site uses another domain. Check /etc/nginx/sites-available/blog.' >&2
-  exit 1
-fi
-if [ ! -e /etc/nginx/sites-enabled/blog ]; then
-  ln -s /etc/nginx/sites-available/blog /etc/nginx/sites-enabled/blog
-fi
-nginx -t
 systemctl daemon-reload
 systemctl enable blog-cms
 make deploy
-certbot --nginx -d "$domain" --redirect
-printf 'Site ready at https://%s/\n' "$domain"
+
+install -m 0644 deploy/blog-tunnel.service /etc/systemd/system/blog-tunnel.service
+
+# Preserve the old public nginx site for rollback, but serve this blog only on loopback.
+old_site=/etc/nginx/sites-enabled/blog
+new_site=/etc/nginx/sites-enabled/blog-tunnel
+if [ -e "$old_site" ] && [ ! -L "$old_site" ]; then
+  echo 'Existing nginx blog site is not a symlink; inspect it before Tunnel setup.' >&2
+  exit 1
+fi
+old_target=
+if [ -L "$old_site" ]; then
+  old_target=$(readlink "$old_site")
+  unlink "$old_site"
+fi
+if [ -f /etc/nginx/sites-available/blog-tunnel ]; then
+  cp -p /etc/nginx/sites-available/blog-tunnel /etc/nginx/sites-available/blog-tunnel.previous
+fi
+sed "s/example.com/$domain/g" deploy/nginx.conf > /etc/nginx/sites-available/blog-tunnel
+new_was_enabled=1
+if [ ! -e "$new_site" ]; then
+  new_was_enabled=0
+  ln -s /etc/nginx/sites-available/blog-tunnel "$new_site"
+fi
+if ! nginx -t; then
+  if [ "$new_was_enabled" -eq 0 ]; then unlink "$new_site"; fi
+  if [ -f /etc/nginx/sites-available/blog-tunnel.previous ]; then
+    cp -p /etc/nginx/sites-available/blog-tunnel.previous /etc/nginx/sites-available/blog-tunnel
+  fi
+  if [ -n "$old_target" ]; then ln -s "$old_target" "$old_site"; fi
+  echo 'nginx configuration failed; previous site link restored.' >&2
+  exit 1
+fi
+systemctl daemon-reload
+systemctl reload nginx
+
+if [ ! -s /etc/blog-tunnel.token ]; then
+  test -t 0 || { echo 'Interactive terminal required for Cloudflare Tunnel token.' >&2; exit 1; }
+  printf 'Cloudflare Tunnel token (from Networking > Tunnels): '
+  stty -echo
+  trap 'stty echo' 0 1 2 15
+  IFS= read -r tunnel_token
+  stty echo
+  trap - 0 1 2 15
+  printf '\n'
+  [ -n "$tunnel_token" ] || { echo 'Tunnel token is required.' >&2; exit 1; }
+  install -m 0600 /dev/null /etc/blog-tunnel.token
+  printf '%s\n' "$tunnel_token" > /etc/blog-tunnel.token
+  unset tunnel_token
+fi
+chown root:root /etc/blog-tunnel.token
+chmod 0600 /etc/blog-tunnel.token
+systemctl enable --now blog-tunnel
+systemctl restart blog-tunnel
+printf 'Origin ready. Route %s to http://127.0.0.1:8080 in Cloudflare Tunnel.\n' "$domain"
