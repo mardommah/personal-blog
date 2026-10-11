@@ -1,6 +1,6 @@
 // Minimal CMS: create/edit/delete posts in SQLite, rebuild dist/ after each change.
-// Listens on 127.0.0.1 only; nginx proxies /admin/ (see deploy/nginx.conf). Login: auth.js.
-// Non-/admin paths serve dist/ for local dev; in production nginx serves those directly.
+// Listens on 127.0.0.1 only; Cloudflare Tunnel reaches it on the same VPS. Login: auth.js.
+// Serves dist/ and CMS directly in both development and production.
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { resolve, extname, sep } from "node:path";
@@ -128,6 +128,10 @@ const send = (res, status, html) => {
 const redirect = (res, to) => res.writeHead(303, { location: to }).end();
 
 async function handle(req, res) {
+  // Cloudflare Tunnel sets this from the visitor's scheme.
+  if (process.env.NODE_ENV === "production" && req.headers["x-forwarded-proto"] !== "https")
+    return send(res, 403, "HTTPS required");
+
   const { pathname } = new URL(req.url, "http://localhost");
 
   // Reject cross-site POSTs (CSRF); the SameSite=Strict session cookie is the second layer.

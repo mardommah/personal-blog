@@ -14,8 +14,8 @@ const fails = new Map(); // ip -> { count, until }
 
 export const authConfigured = HASH.startsWith("$argon2");
 
-// App binds 127.0.0.1, so only nginx (which sets X-Real-IP) or local users can reach it.
-const clientIp = (req) => req.headers["x-real-ip"] || req.socket.remoteAddress;
+// Only the local Cloudflare Tunnel connector can reach the production listener.
+const clientIp = (req) => req.headers["cf-connecting-ip"] || req.socket.remoteAddress;
 
 function readCookie(req, name) {
   for (const part of (req.headers.cookie || "").split(";")) {
@@ -70,7 +70,7 @@ export function logout(req) {
   return cookie(req, "", 0);
 }
 
-// Secure when nginx reports HTTPS; plain http only happens in local dev.
+// Cloudflare Tunnel reports visitor HTTPS; plain HTTP is only used in local development.
 const cookie = (req, value, maxAge) =>
   `sid=${value}; Path=/admin; HttpOnly; SameSite=Strict; Max-Age=${maxAge}` +
   (req.headers["x-forwarded-proto"] === "https" ? "; Secure" : "");

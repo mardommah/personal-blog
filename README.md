@@ -40,7 +40,7 @@ The generated site includes post pages, paginated index pages, static assets, an
 
 ## Deployment
 
-Production configuration lives in `deploy/`: nginx serves the blog on loopback, `blog-cms.service` runs Bun, `blog-tunnel.service` connects to Cloudflare, and `deploy.sh` updates the site from Git.
+Production configuration lives in `deploy/`: `blog-cms.service` runs Bun on `127.0.0.1:3000`, and `deploy.sh` updates the site from Git. Use your existing Cloudflare Tunnel connector on the same VPS.
 
 1. Push this repository to its GitHub origin. Git and Make are needed for the initial clone and setup command on a Debian or Ubuntu VPS.
 2. On the VPS, clone the repository into `/opt/blog` (create the directory first if you prefer):
@@ -52,11 +52,10 @@ Production configuration lives in `deploy/`: nginx serves the blog on loopback, 
    ```
 
    `git pull` works only inside an existing checkout. Use `git clone` for the first download. `/opt/blog` must be empty before cloning.
-3. In Cloudflare, create a remotely managed tunnel under **Networking > Tunnels**. Copy the tunnel token from the connector installation command; keep it private.
-4. As root in `/opt/blog`, run `make vps-setup`. Enter the domain and tunnel token when prompted. If no admin hash exists, setup also asks for an admin password. You can set `DOMAIN=blog.example.com` in `/opt/blog/.env` or pass `make vps-setup DOMAIN=blog.example.com` to skip the domain prompt. An existing `ADMIN_PASSWORD_HASH` in `/etc/blog-cms.env` or `/opt/blog/.env` is reused.
-5. When the tunnel connector is healthy, add a **Published application** route for the blog hostname with service URL `http://127.0.0.1:8080`. The route sets the Cloudflare DNS target for the hostname; replace any conflicting existing DNS record.
+3. As root in `/opt/blog`, run `make vps-setup`. If no admin hash exists, setup asks for an admin password. An existing `ADMIN_PASSWORD_HASH` in `/etc/blog-cms.env` or `/opt/blog/.env` is reused.
+4. In Cloudflare dashboard, open your existing tunnel under **Networking > Tunnels**. Add a **Published Application** with hostname `blog.mardoketlabs.site`, service type `HTTP`, and URL `127.0.0.1:3000`. The connector must run on this VPS. Replace any conflicting existing DNS record or old route for that hostname.
 
-Setup installs required system packages and Bun, installs `cloudflared`, configures nginx and systemd, builds the site, and starts the CMS and tunnel. Cloudflare handles the public HTTPS certificate; no Certbot or inbound port 80/443 is required for this blog. nginx listens only on `127.0.0.1:8080`. Setup stores the token in `/etc/blog-tunnel.token` with mode `600` and requires HTTPS at Cloudflare before serving the CMS.
+Setup installs required system packages and Bun, configures systemd, builds the site, and starts the blog. It does not install or change your existing Tunnel connector. Cloudflare handles the public HTTPS certificate; no nginx, Certbot, or inbound port 80/443 is required. The app rejects requests unless Cloudflare reports visitor HTTPS.
 
 For later releases, push changes to the tracked Git branch, then run **one command as root on the VPS**:
 
@@ -64,9 +63,9 @@ For later releases, push changes to the tracked Git branch, then run **one comma
 cd /opt/blog && make deploy
 ```
 
-This runs `git pull --ff-only`, installs locked production dependencies and regenerates `dist/` as the `blog` user, checks nginx configuration, restarts `blog-cms`, and reloads nginx. Local changes to tracked files stop deployment before the pull. Posts in `data/blog.db` stay on the VPS; Git ignores `data/` and `dist/`.
+This runs `git pull --ff-only`, installs locked production dependencies and regenerates `dist/` as the `blog` user, then restarts `blog-cms`. Local changes to tracked files stop deployment before the pull. Posts in `data/blog.db` stay on the VPS; Git ignores `data/` and `dist/`.
 
-The CMS uses its own password login and session cookie. nginx adds a rate limit to `/admin/login`. Cloudflare sets `X-Forwarded-Proto` from the visitor's scheme; nginx redirects HTTP visitors to HTTPS and passes that scheme to the CMS so login cookies use the `Secure` flag.
+The CMS uses its own password login, per-IP login throttling, and session cookie. Cloudflare sets `X-Forwarded-Proto` from the visitor's scheme; production rejects HTTP, and HTTPS login cookies use the `Secure` flag. Enable **Always Use HTTPS** for the hostname in Cloudflare to redirect HTTP visitors.
 
 ## Project layout
 
@@ -75,4 +74,4 @@ The CMS uses its own password login and session cookie. nginx adds a rate limit 
 - `server.js`: local static server and CMS routes
 - `auth.js`: admin login and sessions
 - `static/`: CSS, JavaScript, and icons copied into `dist/`
-- `deploy/`: nginx, systemd, Cloudflare Tunnel, VPS setup, and update scripts
+- `deploy/`: systemd, VPS setup, and update scripts

@@ -21,13 +21,13 @@ backup:
 	@mkdir -p backups
 	bun -e 'import {Database} from "bun:sqlite"; new Database("data/blog.db").run("VACUUM INTO ?", ["backups/blog-$(shell date +%Y%m%d-%H%M%S).db"])'
 
-## deploy: run on VPS from /opt/blog; pull, build, restart CMS, reload nginx
+## deploy: run on VPS from /opt/blog; pull, build, restart blog
 deploy:
 	./deploy/deploy.sh
 
-## vps-setup: run on VPS from /opt/blog; configure nginx, CMS, and Cloudflare Tunnel
+## vps-setup: run on VPS from /opt/blog; configure blog service
 vps-setup:
-	./deploy/setup-vps.sh "$(DOMAIN)"
+	./deploy/setup-vps.sh
 
 ## password: generate ADMIN_PASSWORD_HASH (argon2id, base64) for .env or /etc/blog-cms.env
 password:

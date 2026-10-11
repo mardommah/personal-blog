@@ -10,6 +10,7 @@ WorkingDirectory=/opt/blog
 ExecStart=/usr/local/bin/bun run server.js
 Restart=on-failure
 Environment=NODE_ENV=production
+Environment=PORT=3000
 # Holds ADMIN_PASSWORD_HASH (from `make password`). chmod 600, owner root.
 EnvironmentFile=/etc/blog-cms.env
 MemoryMax=128M

@@ -15,6 +15,4 @@ chmod a+rx . static deploy
 if [ -d node_modules ]; then chown -R blog:blog node_modules; fi
 runuser -u blog -- /usr/local/bin/bun install --production --frozen-lockfile
 runuser -u blog -- /usr/local/bin/bun run build.js
-nginx -t
 systemctl restart blog-cms
-systemctl reload nginx
