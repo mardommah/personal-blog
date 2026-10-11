@@ -24,26 +24,56 @@ if ! printf '%s' "$domain" | grep -Eq '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]
   exit 1
 fi
 
-for tool in nginx git make runuser; do
-  command -v "$tool" >/dev/null || { echo "Missing $tool; install it on the VPS first." >&2; exit 1; }
-done
-if [ ! -x /usr/local/bin/bun ]; then
-  bun_path=$(command -v bun || true)
-  if [ -z "$bun_path" ] || [ ! -x "$bun_path" ]; then
-    echo 'Bun is missing. Install Bun before running VPS setup.' >&2
-    exit 1
-  fi
+# Debian/Ubuntu packages needed by the site and certificate setup.
+command -v apt-get >/dev/null || { echo 'VPS setup requires Debian or Ubuntu.' >&2; exit 1; }
+apt-get update
+DEBIAN_FRONTEND=noninteractive apt-get install -y git make nginx certbot python3-certbot-nginx curl unzip
+
+# Install or upgrade Bun before reading the version-2 lockfile.
+bun_path=$(command -v bun || true)
+if [ -x /root/.bun/bin/bun ]; then bun_path=/root/.bun/bin/bun; fi
+if [ -z "$bun_path" ] || [ ! -x "$bun_path" ]; then
+  curl -fsSL https://bun.sh/install | bash
+  bun_path=/root/.bun/bin/bun
+fi
+if ! dpkg --compare-versions "$("$bun_path" --version)" ge 1.4.2; then
+  "$bun_path" upgrade
+fi
+if ! dpkg --compare-versions "$("$bun_path" --version)" ge 1.4.2; then
+  echo 'Bun 1.4.2 or newer is required by bun.lock.' >&2
+  exit 1
+fi
+if [ "$bun_path" != /usr/local/bin/bun ]; then
   install -m 0755 "$bun_path" /usr/local/bin/bun
 fi
-if [ ! -f /etc/blog-cms.env ]; then
-  if [ ! -f .env ] || ! grep -q '^ADMIN_PASSWORD_HASH=' .env; then
-    echo 'Add ADMIN_PASSWORD_HASH to /opt/blog/.env or create /etc/blog-cms.env first.' >&2
-    exit 1
+
+# Use existing hash, import it from .env, or ask for a new admin password.
+if [ ! -f /etc/blog-cms.env ] || ! grep -q '^ADMIN_PASSWORD_HASH=' /etc/blog-cms.env; then
+  if [ -f .env ] && grep -q '^ADMIN_PASSWORD_HASH=' .env; then
+    install -m 0600 /dev/null /etc/blog-cms.env
+    grep -m1 '^ADMIN_PASSWORD_HASH=' .env > /etc/blog-cms.env
+  else
+    test -t 0 || { echo 'Interactive terminal required to set admin password.' >&2; exit 1; }
+    printf 'Admin password (min 12 characters): '
+    stty -echo
+    trap 'stty echo' 0 1 2 15
+    IFS= read -r password
+    printf '\nRepeat password: '
+    IFS= read -r password_confirm
+    stty echo
+    trap - 0 1 2 15
+    printf '\n'
+    [ "$password" = "$password_confirm" ] && [ "${#password}" -ge 12 ] || {
+      echo 'Passwords must match and contain at least 12 characters.' >&2
+      exit 1
+    }
+    hash=$(P="$password" /usr/local/bin/bun -e 'const h = await Bun.password.hash(process.env.P, { algorithm: "argon2id", memoryCost: 19456, timeCost: 2 }); console.log(Buffer.from(h).toString("base64"))')
+    unset password password_confirm
+    install -m 0600 /dev/null /etc/blog-cms.env
+    printf 'ADMIN_PASSWORD_HASH=%s\n' "$hash" > /etc/blog-cms.env
+    unset hash
   fi
-  install -m 0600 /dev/null /etc/blog-cms.env
-  grep -m1 '^ADMIN_PASSWORD_HASH=' .env > /etc/blog-cms.env
 fi
-grep -q '^ADMIN_PASSWORD_HASH=' /etc/blog-cms.env || { echo 'ADMIN_PASSWORD_HASH is missing from /etc/blog-cms.env.' >&2; exit 1; }
 chown root:root /etc/blog-cms.env
 chmod 600 /etc/blog-cms.env
 
@@ -66,4 +96,5 @@ nginx -t
 systemctl daemon-reload
 systemctl enable blog-cms
 make deploy
-printf 'Site configured for %s. Enable HTTPS: certbot --nginx -d %s --redirect\n' "$domain" "$domain"
+certbot --nginx -d "$domain" --redirect
+printf 'Site ready at https://%s/\n' "$domain"

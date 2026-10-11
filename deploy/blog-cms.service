@@ -1,5 +1,5 @@
 # /etc/systemd/system/blog-cms.service
-# Bun install: curl -fsSL https://bun.sh/install | sudo BUN_INSTALL=/usr/local bash
+# setup-vps.sh installs Bun at /usr/local/bin/bun.
 [Unit]
 Description=Personal blog CMS
 After=network.target
